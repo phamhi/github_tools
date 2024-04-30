@@ -39,7 +39,6 @@ dict_global_params = dict(
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-
 def add_security_team(str_team_parent_name:str, str_team_security_postfix_name:str) -> (bool):
     str_team_security_name = f'{str_team_parent_name}_{str_team_security_postfix_name}'
     logger.debug(f'str_security_team_name:"{str_team_security_name}"')
