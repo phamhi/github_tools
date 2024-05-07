@@ -94,7 +94,7 @@ def get_all_teams() -> (list):
 
 def parse_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description='Get all Github teams and output in Python format'
+        description='Get all Github teams and output in Python format.'
     )
 
     parser.add_argument(
