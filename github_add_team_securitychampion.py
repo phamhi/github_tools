@@ -1,4 +1,3 @@
-import pickle
 
 import requests
 import json
@@ -179,7 +178,7 @@ def _add_child_team(str_team_name:str, int_team_parent_id:int) -> (dict):
     # /fi
 
     if res.status_code == 201:
-        logger.info(f'security team "{str_team_name}" created successfully in the parent team "{str_team_name}"')
+        logger.info(f'security team "{str_team_name}" created successfully')
     else:
         logger.error(f'failed to create team "{str_team_name}"')
         logger.error(f'{res.text}')
@@ -200,7 +199,7 @@ def remove_duplicates(list_input:list) -> (list):
 
 def parse_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description='Create an Archive BitBucket Project'
+        description='Create the SecurityChampion Github Team.'
     )
 
     parser.add_argument(
