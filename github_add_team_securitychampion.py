@@ -5,6 +5,7 @@ import os
 import sys
 import argparse
 import logging
+from collections import OrderedDict
 
 from urllib3.exceptions import InsecureRequestWarning
 from pprint import pformat
@@ -44,7 +45,7 @@ def add_security_team(str_team_parent_name:str, str_team_security_postfix_name:s
 
     dict_team_parent = _get_team(str_team_parent_name)
     if not dict_team_parent:
-        logger.info(f'OK:failed to locate team "{str_team_parent_name}"')
+        logger.error(f'failed to locate team "{str_team_parent_name}"')
         return False
     # /fi
 
@@ -62,6 +63,8 @@ def add_security_team(str_team_parent_name:str, str_team_security_postfix_name:s
         return True
     # /if
 
+    # logger.debug(_get_team_maintainers(str_team_name))
+
     if not _is_proper_parent_team(str_team_parent_name, ['Admin', 'User']):
         return False
     # /if
@@ -76,7 +79,7 @@ def _is_proper_parent_team(str_team_name: str, list_child_prefixes: list) -> (bo
     list_child_teams = _get_child_teams(str_team_name)
 
     if not list_child_teams:
-        logger.info(f'FAILED:failed to find child teams for "{str_team_name}"')
+        logger.error(f'failed to find child teams for "{str_team_name}"')
         return False
     # /if
 
@@ -94,12 +97,40 @@ def _is_proper_parent_team(str_team_name: str, list_child_prefixes: list) -> (bo
 
     for str_required_child in set_required_child_prefixes:
         if str_required_child not in set_src_child_prefixes:
-            logger.info(f'FAILED:failed to locate the required child team "{str_required_child}" in the parent team "{str_team_name}"')
+            logger.error(f'failed to locate the required child team "{str_required_child}" in the parent team "{str_team_name}"')
             return False
         # /if
     # /for
 
     return True
+# /def
+
+def _get_team_maintainers(str_team_name: str) -> (dict):
+    dict_params = dict_global_params.copy()
+    dict_params['role'] = 'maintainer'
+
+    str_rest_url = f'https://api.github.com/orgs/{str_github_org}/teams/{str_team_name}'
+    logger.debug(f'action="get",rest_url="{str_rest_url}"')
+
+    res = requests.get(str_rest_url,
+                       verify=bool_ssl_verify,
+                       headers=dict_global_headers,
+                       params=dict_params)
+    logger.debug(f'res.status_code = {res.status_code}')
+
+    if res.status_code == 401:
+        logger.error(f'credential rejected')
+        return {}
+    # /fi
+
+    list_maintainers = json.loads(res.text)
+    if res.status_code == 200:
+        logger.debug(f'successfully retrieved maintainers for "{str_team_name}"')
+    else:
+        logger.debug(f'failed to retrieve maintainers for "{str_team_name}"')
+        return {}
+    # /else
+    return list_maintainers
 # /def
 
 def _get_child_teams(str_team_name: str) -> (dict):
@@ -186,7 +217,7 @@ def _add_child_team(str_team_name:str, int_team_parent_id:int) -> (dict):
     if res.status_code == 201:
         logger.info(f'OK:security team "{str_team_name}" created successfully')
     else:
-        logger.info(f'FAILED:failed to create team "{str_team_name}"')
+        logger.error(f'FAILED:failed to create team "{str_team_name}"')
         logger.error(f'{res.text}')
         return {}
     # /else
@@ -197,7 +228,6 @@ def _add_child_team(str_team_name:str, int_team_parent_id:int) -> (dict):
 # /def
 
 def remove_duplicates(list_input:list) -> (list):
-    from collections import OrderedDict
     return list(OrderedDict.fromkeys(list_input))
 # /def
 
@@ -210,14 +240,14 @@ def parse_args() :
 
     parser.add_argument(
         '--debug',
-        help='Display "debugging" in output (defaults to "info")',
+        help='Display "debugging" in output (defaults to "info").',
         action='store_const', dest='verbosity',
         const=logging.DEBUG, default=logging.INFO,
     )
 
     parser.add_argument(
         '--error-only',
-        help='Display "error" in output only (filters "info")',
+        help='Display "error" in output only (filters "info").',
         action='store_const', dest='verbosity',
         const=logging.ERROR,
     )
@@ -228,11 +258,25 @@ def parse_args() :
         dest='input_file'
     )
 
+    parser.add_argument(
+        '-o', '--output-result',
+        help='Result of the run in CSV format.',
+        dest='output_file'
+    )
+
     parser.add_argument('team_name', nargs='?', default='')
 
     args = parser.parse_args()
     return parser, args
 # /def
+
+def _get_updated_team_name(str_team_name) -> str:
+    dict_team = _get_team(str_team_name)
+    if dict_team:
+        return dict_team['name']
+    # /if
+    return str_team_name
+#/if
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -243,6 +287,7 @@ if __name__ == '__main__':
     int_verbosity = args.verbosity
     str_team_name = args.team_name
     str_input_file = args.input_file
+    str_output_file = args.output_file
 
     logger = logging.getLogger(__name__)
     c_handler = logging.StreamHandler()
@@ -270,11 +315,16 @@ if __name__ == '__main__':
 
     logger.debug(f'github_org:"{str_github_org}"')
 
+    if str_output_file:
+        logger.debug(f'output_file:"{str_output_file}"')
+    # /if
+
     list_queue = []
     if str_input_file:
-        logger.debug(f'input_file:"str_input_file"')
+        logger.debug(f'input_file:"{str_input_file}"')
         with open(str_input_file, 'r') as f:
             list_team_names = f.read().splitlines()
+            list_team_names = [i for i in list_team_names if i]
             for str_name in list_team_names:
                 list_queue.append(str_name)
             # /for
@@ -286,9 +336,26 @@ if __name__ == '__main__':
     list_queue = remove_duplicates(list_queue)
     logger.debug(f'list_queue:"{list_queue}"')
 
+    ordereddict_output_file = OrderedDict()
+
     for str_queue_name in list_queue:
-        logger.debug(f'str_queue_name:"{str_queue_name}"')
-        add_security_team(str_queue_name, str_default_team_security_postfix_name)
+        logger.debug(f'queue_name:"{str_queue_name}"')
+        bool_run_result = add_security_team(str_queue_name, str_default_team_security_postfix_name)
+
+        str_queue_name = _get_updated_team_name(str_queue_name)
+
+        # test(str_queue_name)
+        ordereddict_output_file[str_queue_name] = bool_run_result
     # /for
+
+    if str_output_file:
+        logger.debug(f'{ordereddict_output_file}')
+        with open(str_output_file, 'w') as f:
+            f.write('TEAM_NAME,RUN_OK\n')
+            for k in ordereddict_output_file:
+                f.writelines(f'{k},{ordereddict_output_file[k]}\n')
+            # /for
+        # /with
+    #/if
 
 # /if
