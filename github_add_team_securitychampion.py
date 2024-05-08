@@ -1,7 +1,6 @@
 
 import requests
 import json
-import time
 import os
 import sys
 import argparse
@@ -39,38 +38,45 @@ dict_global_params = dict(
 # ----------------------------------------------------------------------------------------------------------------------
 
 def add_security_team(str_team_parent_name:str, str_team_security_postfix_name:str) -> (bool):
-    str_team_security_name = f'{str_team_parent_name}_{str_team_security_postfix_name}'
-    logger.debug(f'str_security_team_name:"{str_team_security_name}"')
+    if not str_team_parent_name:
+        return False
+    #/if
 
     dict_team_parent = _get_team(str_team_parent_name)
     if not dict_team_parent:
-        logger.info(f'failed to locate team "{str_team_parent_name}"')
+        logger.info(f'OK:failed to locate team "{str_team_parent_name}"')
         return False
     # /fi
 
+    # refresh for proper cases
+    str_team_parent_name = dict_team_parent['name']
+    str_team_security_name = f'{str_team_parent_name}_{str_team_security_postfix_name}'
+    logger.debug(f'str_security_team_name:"{str_team_security_name}"')
+
     int_team_parent_id = dict_team_parent.setdefault('id', 0)
+
+    # check if security team already exists
+    dict_team_security = _get_team(str_team_security_name)
+    if dict_team_security:
+        logger.info(f'OK:security team "{str_team_security_name}" already exists inside parent team "{str_team_parent_name}"')
+        return True
+    # /if
 
     if not _is_proper_parent_team(str_team_parent_name, ['Admin', 'User']):
         return False
     # /if
 
-    # check if security team already exists
-    dict_team_security = _get_team(str_team_security_name)
-    if dict_team_security:
-        logger.info(f'security team "{str_team_security_name}" already exists inside parent team "{str_team_parent_name}"')
-        return True
-    else:
-        _add_child_team(str_team_security_name, int_team_parent_id)
-    # /if
-
-
+    if not _add_child_team(str_team_security_name, int_team_parent_id):
+        return False
+    #/if
+    return True
 # /def
 
 def _is_proper_parent_team(str_team_name: str, list_child_prefixes: list) -> (bool):
     list_child_teams = _get_child_teams(str_team_name)
 
     if not list_child_teams:
-        logger.info(f'failed to find child teams for "{str_team_name}"')
+        logger.info(f'FAILED:failed to find child teams for "{str_team_name}"')
         return False
     # /if
 
@@ -88,7 +94,7 @@ def _is_proper_parent_team(str_team_name: str, list_child_prefixes: list) -> (bo
 
     for str_required_child in set_required_child_prefixes:
         if str_required_child not in set_src_child_prefixes:
-            logger.info(f'failed to locate the required child team "{str_required_child}" in the parent team "{str_team_name}"')
+            logger.info(f'FAILED:failed to locate the required child team "{str_required_child}" in the parent team "{str_team_name}"')
             return False
         # /if
     # /for
@@ -178,9 +184,9 @@ def _add_child_team(str_team_name:str, int_team_parent_id:int) -> (dict):
     # /fi
 
     if res.status_code == 201:
-        logger.info(f'security team "{str_team_name}" created successfully')
+        logger.info(f'OK:security team "{str_team_name}" created successfully')
     else:
-        logger.error(f'failed to create team "{str_team_name}"')
+        logger.info(f'FAILED:failed to create team "{str_team_name}"')
         logger.error(f'{res.text}')
         return {}
     # /else
@@ -197,7 +203,7 @@ def remove_duplicates(list_input:list) -> (list):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-def parse_args() -> argparse.ArgumentParser:
+def parse_args() :
     parser = argparse.ArgumentParser(
         description='Create the SecurityChampion Github Team.'
     )
@@ -216,20 +222,27 @@ def parse_args() -> argparse.ArgumentParser:
         const=logging.ERROR,
     )
 
-    parser.add_argument('team_parent_name', nargs='+')
+    parser.add_argument(
+        '-i', '--input-file',
+        help='File contains list of Teams to be processed.',
+        dest='input_file'
+    )
+
+    parser.add_argument('team_name', nargs='?', default='')
 
     args = parser.parse_args()
-    return args
+    return parser, args
 # /def
 
 # ----------------------------------------------------------------------------------------------------------------------
 
 if __name__ == '__main__':
     # parse arguments passed
-    args = parse_args()
+    parser, args = parse_args()
 
     int_verbosity = args.verbosity
-    list_team_parent_name = remove_duplicates(args.team_parent_name)
+    str_team_name = args.team_name
+    str_input_file = args.input_file
 
     logger = logging.getLogger(__name__)
     c_handler = logging.StreamHandler()
@@ -251,10 +264,31 @@ if __name__ == '__main__':
         sys.exit(1)
     # /if
 
-    logger.debug(f'github_org:"{str_github_org}"')
-    logger.debug(f'team_parent_name:"{list_team_parent_name}"')
+    if (not str_team_name) and (not str_input_file):
+        parser.print_help()
+    # /if
 
-    for str_team_parent_name in list_team_parent_name:
-        add_security_team(str_team_parent_name, str_default_team_security_postfix_name)
+    logger.debug(f'github_org:"{str_github_org}"')
+
+    list_queue = []
+    if str_input_file:
+        logger.debug(f'input_file:"str_input_file"')
+        with open(str_input_file, 'r') as f:
+            list_team_names = f.read().splitlines()
+            for str_name in list_team_names:
+                list_queue.append(str_name)
+            # /for
+        # /with
+    elif str_team_name:
+        list_queue.append(str_team_name)
+    # /if
+
+    list_queue = remove_duplicates(list_queue)
+    logger.debug(f'list_queue:"{list_queue}"')
+
+    for str_queue_name in list_queue:
+        logger.debug(f'str_queue_name:"{str_queue_name}"')
+        add_security_team(str_queue_name, str_default_team_security_postfix_name)
     # /for
+
 # /if

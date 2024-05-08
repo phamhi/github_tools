@@ -36,7 +36,7 @@ dict_global_params = dict(
 
 # Get repositories for the specified organization on specific page
 # https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28#list-organization-repositories
-def get_teams_per_page(page: int, per_page=100) -> (list):
+def _get_teams_per_page(page: int, per_page=100) -> (list):
     dict_params = dict_global_params.copy()
     dict_params['per_page'] = per_page
     dict_params['page'] = page
@@ -74,7 +74,7 @@ def get_all_teams() -> (list):
     list_all_repos = []
 
     while True:
-        list_returned_repos = get_teams_per_page(page)
+        list_returned_repos = _get_teams_per_page(page)
 
         if len(list_returned_repos) == 0:
             break
@@ -94,7 +94,7 @@ def get_all_teams() -> (list):
 
 def parse_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description='Get all Github teams and output in Python format.'
+        description='Get the names of all Github teams.'
     )
 
     parser.add_argument(
@@ -111,6 +111,13 @@ def parse_args() -> argparse.ArgumentParser:
         const=logging.ERROR,
     )
 
+    parser.add_argument(
+        '--json',
+        help='Display out in JSON format',
+        action='store_const', dest='json_output',
+        const=True,
+    )
+
     args = parser.parse_args()
     return args
 # /def
@@ -122,6 +129,7 @@ if __name__ == '__main__':
     args = parse_args()
 
     int_verbosity = args.verbosity
+    bool_json_output = args.json_output
 
     logger = logging.getLogger(__name__)
     c_handler = logging.StreamHandler()
@@ -148,9 +156,18 @@ if __name__ == '__main__':
     list_teams =  get_all_teams()
     logger.debug(f'got a total of {len(list_teams)} team(s)')
 
-    pprint(list_teams)
     if not len(list_teams):
         exit(1)
     # /if
+
+    if bool_json_output:
+        print(json.dumps(list_teams, indent=4))
+        exit(0)
+    # /if
+
+    list_team_names = [n['name'] for n in list_teams if n['name']]
+
+    for i in list_team_names:
+        print(i)
 
 # # /if
