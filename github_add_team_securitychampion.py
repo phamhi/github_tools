@@ -341,10 +341,7 @@ if __name__ == '__main__':
     for str_queue_name in list_queue:
         logger.debug(f'queue_name:"{str_queue_name}"')
         bool_run_result = add_security_team(str_queue_name, str_default_team_security_postfix_name)
-
         str_queue_name = _get_updated_team_name(str_queue_name)
-
-        # test(str_queue_name)
         ordereddict_output_file[str_queue_name] = bool_run_result
     # /for
 
