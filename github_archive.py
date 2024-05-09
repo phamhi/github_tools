@@ -141,7 +141,7 @@ def _move_repo(str_repo_name: str) -> (dict):
 def _update_repo_req_name(str_repo_name:str, str_req_name:str) -> (bool):
     dict_params = dict_global_params.copy()
 
-    str_rest_url = f'https://api.github.com/repos/{str_github_org}/{str_repo_name}/properties/values'
+    str_rest_url = f'https://api.github.com/repos/{str_github_org_archive}/{str_repo_name}/properties/values'
     logger.debug(f'action="patch",rest_url="{str_rest_url}"')
 
     dict_body = { 'properties': [ { 'property_name' : 'request-num', 'value': str_req_name }] }
