@@ -254,6 +254,10 @@ def _get_updated_repo_name(str_repo_name) -> str:
     return str_repo_name
 #/if
 
+def _get_first_char(s:str) -> str:
+    return s[0] if s else ''
+# /def
+
 def _process_input_file(str_input_file: str) -> OrderedDict:
     if not str_input_file:
         return {}
@@ -266,7 +270,13 @@ def _process_input_file(str_input_file: str) -> OrderedDict:
         list_lines = f.read().splitlines()
         logger.debug(f'list_lines="{list_lines}"')
         for str_line in list_lines:
+            # skip header line (assuming all uppercase)
             if str_line.isupper():
+                continue
+            # /if
+
+            # skip if first non-space character is a '#' character
+            if _get_first_char(str_line) == '#':
                 continue
             # /if
             list_split = str_line.split(',')
