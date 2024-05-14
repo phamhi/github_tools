@@ -5,10 +5,13 @@ import os
 import sys
 import argparse
 import logging
-from collections import OrderedDict
 
+
+from collections import OrderedDict
 from urllib3.exceptions import InsecureRequestWarning
-from pprint import pformat
+from datetime import datetime
+
+
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -133,7 +136,7 @@ def _get_team_maintainers(str_team_name: str) -> (dict):
     return list_maintainers
 # /def
 
-def _get_child_teams(str_team_name: str) -> (dict):
+def _get_child_teams(str_team_name: str) -> (list):
     dict_params = dict_global_params.copy()
 
     str_rest_url = f'https://api.github.com/orgs/{str_github_org}/teams/{str_team_name}/teams'
@@ -278,25 +281,41 @@ def _get_updated_team_name(str_team_name) -> str:
     return str_team_name
 #/if
 
+def create_logger(str_basename:str) -> logging.Logger:
+    str_basename = os.path.basename(str_basename)
+    str_datetime_now = datetime.now().strftime("%Y-%m-%d_%T-%f")
+    str_log_name = f'{str_basename}.{str_datetime_now}.log'
+
+    common_formatter = logging.Formatter('%(funcName)s:%(levelname)s:%(message)s')
+    logger = logging.getLogger(__name__)
+
+    # set console logging
+    c_handler = logging.StreamHandler()
+    c_handler.setFormatter(common_formatter)
+    logger.addHandler(c_handler)
+
+    f_handler = logging.FileHandler(str_log_name)
+    f_handler.setFormatter(common_formatter)
+    logger.addHandler(f_handler)
+
+    logger.debug(f'str_log_name:"{str_log_name}"')
+    return logger
+# /def
+
 # ----------------------------------------------------------------------------------------------------------------------
+
+logger = create_logger(sys.argv[0])
 
 if __name__ == '__main__':
     # parse arguments passed
     parser, args = parse_args()
-
+    #
     int_verbosity = args.verbosity
     str_team_name = args.team_name
     str_input_file = args.input_file
     str_output_file = args.output_file
 
-    logger = logging.getLogger(__name__)
-    c_handler = logging.StreamHandler()
-    c_handler.setFormatter(logging.Formatter('%(funcName)s:%(levelname)s:%(message)s'))
-    logger.addHandler(c_handler)
-
-    # set logging verbosity
     logger.setLevel(int_verbosity)
-
     logger.debug(f'verbosity "level":"{logging.getLevelName(int_verbosity)}"')
 
     if not str_github_token:
