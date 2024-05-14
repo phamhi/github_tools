@@ -315,6 +315,7 @@ if __name__ == '__main__':
     str_input_file = args.input_file
     str_output_file = args.output_file
 
+    # set logging verbosity
     logger.setLevel(int_verbosity)
     logger.debug(f'verbosity "level":"{logging.getLevelName(int_verbosity)}"')
 

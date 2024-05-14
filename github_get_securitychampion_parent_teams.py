@@ -3,9 +3,9 @@ import requests
 import json
 import time
 import os
-import sys
 import argparse
 import logging
+import sys
 
 from pprint import pprint
 from urllib3.exceptions import InsecureRequestWarning
@@ -35,7 +35,7 @@ dict_global_params = dict(
 # ----------------------------------------------------------------------------------------------------------------------
 
 # Get all repositories for the specified organization.
-def get_teams(bool_parent_only: bool) -> (list):
+def get_securitychampion_parent_teams() -> (list):
     page = 1
     list_teams = []
 
@@ -54,20 +54,48 @@ def get_teams(bool_parent_only: bool) -> (list):
     # / while
 
     list_team_names = [n['name'] for n in list_teams if n['name']]
+    list_required_child_teams = ['Admin', 'User']
 
-    if not bool_parent_only:
-        return list_team_names
-    # /if
-
-    list_team_parent_only = []
+    list_proper_team_names = []
     for str_team_name in list_team_names:
-        list_result = _get_child_teams(str_team_name)
-        if not list_result:
+        bool_result = _is_proper_parent_team(str_team_name, list_required_child_teams)
+        if not bool_result:
             continue
         # /if
-        list_team_parent_only.append(str_team_name)
+        list_proper_team_names.append(str_team_name)
+    # /for
 
-    return list_team_parent_only
+    return list_proper_team_names
+# /def
+
+def _is_proper_parent_team(str_team_name: str, list_child_prefixes: list) -> (bool):
+    list_child_teams = _get_child_teams(str_team_name)
+
+    if not list_child_teams:
+        logger.debug(f'failed to find child teams for "{str_team_name}"')
+        return False
+    # /if
+
+    set_required_child_prefixes = set(list_child_prefixes)
+    set_src_child_prefixes = set()
+
+    for dict_child in list_child_teams:
+        str_child_name = dict_child['name']
+        logger.debug(f'found child:{str_child_name}')
+        str_child_name_postfix = str_child_name.split('_')[-1]
+        set_src_child_prefixes.add(str_child_name_postfix)
+    # /for
+    logger.debug(f'set_required_child_prefixes="{set_required_child_prefixes}"')
+    logger.debug(f'set_src_child_prefixes="{set_src_child_prefixes}"')
+
+    for str_required_child in set_required_child_prefixes:
+        if str_required_child not in set_src_child_prefixes:
+            logger.debug(f'failed to locate the required child team "{str_required_child}" in the parent team "{str_team_name}"')
+            return False
+        # /if
+    # /for
+
+    return True
 # /def
 
 def _get_child_teams(str_team_name: str) -> (dict):
@@ -135,7 +163,7 @@ def _get_teams_per_page(page: int, per_page=100) -> (list):
 
 def parse_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description='Get the names of Github teams.'
+        description='Get SecurityChampion "parent"-type Teams.'
     )
 
     parser.add_argument(
@@ -152,45 +180,35 @@ def parse_args() -> argparse.ArgumentParser:
         const=logging.ERROR,
     )
 
-    parser.add_argument(
-        '-p', '--parent-only',
-        help='Get Teams that are parent type only.',
-        action='store_const', dest='parent_only',
-        const=True, default=False
-    )
-
-    # parser.add_argument(
-    #     '--json',
-    #     help='Display out in JSON format',
-    #     action='store_const', dest='json_output',
-    #     const=True,
-    # )
-
     args = parser.parse_args()
     return args
 # /def
 
+def create_logger() -> logging.Logger:
+    common_formatter = logging.Formatter('%(funcName)s:%(levelname)s:%(message)s')
+    logger = logging.getLogger(__name__)
+
+    # set console logging
+    c_handler = logging.StreamHandler()
+    c_handler.setFormatter(common_formatter)
+    logger.addHandler(c_handler)
+
+    return logger
+# /def
+
 # ----------------------------------------------------------------------------------------------------------------------
+
+logger = create_logger()
 
 if __name__ == '__main__':
     # parse arguments passed
     args = parse_args()
-
+    #
     int_verbosity = args.verbosity
-    # bool_json_output = args.json_output
-    bool_parent_only = args.parent_only
-
-    logger = logging.getLogger(__name__)
-    c_handler = logging.StreamHandler()
-    c_handler.setFormatter(logging.Formatter('%(funcName)s:%(levelname)s:%(message)s'))
-    logger.addHandler(c_handler)
 
     # set logging verbosity
     logger.setLevel(int_verbosity)
-
     logger.debug(f'verbosity "level":"{logging.getLevelName(int_verbosity)}"')
-    # logger.debug(f'bool_json_output:"{bool_json_output}"')
-    logger.debug(f'bool_parent_only:"{bool_parent_only}"')
 
     if not str_github_token:
         logger.error('environment variable "GITHUB_TOKEN" is not set or empty.')
@@ -204,19 +222,12 @@ if __name__ == '__main__':
 
     logger.debug(f'github org:"{str_github_org}"')
 
-    list_team_names =  get_teams(bool_parent_only)
+    list_team_names =  get_securitychampion_parent_teams()
     logger.debug(f'got a total of {len(list_team_names)} team(s)')
 
     if not len(list_team_names):
         exit(1)
     # /if
-
-    # if bool_json_output:
-    #     print(json.dumps(list_teams, indent=4))
-    #     exit(0)
-    # # /if
-
-    # list_team_names = [n['name'] for n in list_teams if n['name']]
 
     for i in list_team_names:
         print(i)

@@ -2,28 +2,36 @@
 
 ## Example end-to-end testing
 
-Export the required environment variables
+### 1) Export the required environment variables
+
+We need to export the required environment variables:
 
 ```shell
 export GITHUB_TOKEN=mytoken
 export GITHUB_ORG=myorg
 ```
 
-Get all Github Teams that are "parent" type (i.e. has at least 1 child team)
+### 2) Get the Github Teams to be processed
+
+We need to get all Github Teams that : 
+ - are "parent" type AND 
+ - are the parents of the "XYZ_Admin" and "XYZ_User" child Teams
 
 ```shell
-python github_get_teams.py --parent-only > all_parent_teams.txt
+python github_get_securitychampion_parent_teams.py > queue_securitychampion_parent_teams.txt
 ```
 
-Create the "SecurityChampion" team from the input list: all_parent_teams.txt
+### 3) Create the SecurityChampion teams
+
+Let's go ahead and create the "SecurityChampion" team from the input list: **queue_securitychampion_parent_teams.txt**
  - Each run will create a log file (e.g. github_add_team_securitychampion.py.2024-05-14_17:59:46-447753.log)
- - the parameter "-o run_securitychamption_result.csv" will create a csv file containing the result of each team
+ - the parameter "-o run_securitychamption_result.csv" will create a csv file containing the result of each item
 
 ```shell
-python github_add_team_securitychampion.py -i all_parent_teams.txt -o run_securitychamption_result.csv
+python github_add_securitychampion_team.py -i queue_securitychampion_parent_teams.txt -o run_securitychamption.result.csv
 ```
 
-An example output of the run_securitychamption_result.csv file (can be easily imported to Excel:
+An example output of the **run_securitychamption.result.csv** file (which can be easily imported to Excel):
 
 ```shell
 TEAM_NAME,RUN_OK
@@ -33,23 +41,71 @@ StarfoxHUB_1010,True
 Apple,False
 ```
 
-Generate an input list of "parent" Teams' Maintainers to be copied to the SecurityChamption Teams
+An example log of the run: **github_add_securitychampion_team.py.2024-05-14_18:29:05-266219.log**
 
 ```shell
-% python generate_teams_maintainer_list.py all_parent_teams.txt
-
+add_security_team:ERROR:failed to locate team "Banana"
+add_security_team:ERROR:failed to locate team "Strawberry"
+_add_child_team:INFO:OK:security team "StarfoxHUB_1010_SecurityChampion" created successfully
+add_security_team:ERROR:failed to locate team "Apple"
 ```
+
+### 4) Generate a list of Teams for Maintainers members to be copied
+
+Let's go ahead and generate an input list of "parent" Teams' Maintainers to be copied to the SecurityChamption Teams
+ - output a new queue called: **queue_securitychampion_maintainer_copy.txt**
+
+```shell
+python generate_teams_maintainer_list.py queue_securitychampion_parent_teams.txt | tee queue_securitychampion_maintainer_copy.txt
+```
+
+An example output of the **run_maintainer_copy.result.csv** file (which can be easily imported to Excel):
+
+```shell
 SOURCE_TEAM,DESTINATION_TEAM
-Account,Account_SecurityChampion
-Admin,Admin_SecurityChampion
-Android,Android_SecurityChampion
-EPO,EPO_SecurityChampion
-Interns,Interns_SecurityChampion
-iOS,iOS_SecurityChampion
-Mobile,Mobile_SecurityChampion
-Platform,Platform_SecurityChampion
-Reports,Reports_SecurityChampion
+Banana,Banana_SecurityChampion
+Strawberry,Strawberry_SecurityChampion
 StarfoxHUB_1010,StarfoxHUB_1010_SecurityChampion
+Apple,Apple_SecurityChampion
+```
+
+### 5) Copy Maintainers from Parent Teams to SecurityChampion Teams
+
+Let's process the list:
+ - Copy the Maintainer members from SOURCE_TEAM to DESTINATON_TEAM
+
+```shell
+python github_copy_maintainers.py -i queue_securitychampion_maintainer_copy.txt -o run_maintainer_copy.result.csv
+```
+
+An example output of the **run_maintainer_copy.result.csv** file (which can be easily imported to Excel):
+
+```shell
+SOURCE_TEAM,DESTINATION_TEAM,RUN_OK
+Banana,Banana_SecurityChampion,False
+Strawberry,Strawberry_SecurityChampion,False
+StarfoxHUB_1010,StarfoxHUB_1010_SecurityChampion,True
+Apple,Apple_SecurityChampion,False
+```
+
+An example log of the run: **github_add_securitychampion_team.py.2024-05-14_18:29:05-266219.log**
+
+```shell
+add_security_team:ERROR:failed to locate team "Banana"
+add_security_team:ERROR:failed to locate team "Strawberry"
+_add_child_team:INFO:OK:security team "StarfoxHUB_1010_SecurityChampion" created successfully
+add_security_team:ERROR:failed to locate team "Apple"
+```
+
+An example log:
+
+```shell
+SOURCE_TEAM,DESTINATION_TEAM,RUN_OK
+Banana,Banana_SecurityChampion,False
+Strawberry,Strawberry_SecurityChampion,False
+StarfoxHUB_1010,StarfoxHUB_1010_SecurityChampion,True
+Apple,Apple_SecurityChampion,False
+```
 
 ## generate_teams_maintainer_list.py
 
