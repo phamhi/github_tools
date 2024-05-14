@@ -6,7 +6,8 @@ import sys
 import argparse
 import logging
 
-import pprint
+
+from datetime import datetime
 from collections import OrderedDict
 from urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
@@ -245,7 +246,30 @@ def _process_input_file(str_input_file: str) -> OrderedDict:
     return ordereddict_queue
 # /def
 
+def create_logger(str_basename:str) -> logging.Logger:
+    str_basename = os.path.basename(str_basename)
+    str_datetime_now = datetime.now().strftime("%Y-%m-%d_%T-%f")
+    str_log_name = f'{str_basename}.{str_datetime_now}.log'
+
+    common_formatter = logging.Formatter('%(funcName)s:%(levelname)s:%(message)s')
+    logger = logging.getLogger(__name__)
+
+    # set console logging
+    c_handler = logging.StreamHandler()
+    c_handler.setFormatter(common_formatter)
+    logger.addHandler(c_handler)
+
+    f_handler = logging.FileHandler(str_log_name)
+    f_handler.setFormatter(common_formatter)
+    logger.addHandler(f_handler)
+
+    logger.debug(f'str_log_name:"{str_log_name}"')
+    return logger
+# /def
+
 # ----------------------------------------------------------------------------------------------------------------------
+
+logger = create_logger(sys.argv[0])
 
 if __name__ == '__main__':
     # parse arguments passed
@@ -259,14 +283,8 @@ if __name__ == '__main__':
     str_source_team = args.source_team
     str_destination_team = args.destination_team
 
-    logger = logging.getLogger(__name__)
-    c_handler = logging.StreamHandler()
-    c_handler.setFormatter(logging.Formatter('%(funcName)s:%(levelname)s:%(message)s'))
-    logger.addHandler(c_handler)
-
     # set logging verbosity
     logger.setLevel(int_verbosity)
-
     logger.debug(f'verbosity "level":"{logging.getLevelName(int_verbosity)}"')
 
     if not str_github_token:

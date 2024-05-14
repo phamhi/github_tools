@@ -18,20 +18,31 @@ We need to get all Github Teams that :
  - are the parents of the "XYZ_Admin" and "XYZ_User" child Teams
 
 ```shell
-python github_get_securitychampion_parent_teams.py > queue_securitychampion_parent_teams.txt
+python github_get_securitychampion_parent_teams.py | tee queue.securitychampion_parent_teams.txt
+```
+
+An example output of the **queue.securitychampion_parent_teams.txt** file 
+
+```shell
+Banana
+Strawberry
+StarfoxHUB_1010
+Apple
 ```
 
 ### 3) Create the SecurityChampion teams
 
-Let's go ahead and create the "SecurityChampion" team from the input list: **queue_securitychampion_parent_teams.txt**
+Let's go ahead and create the "SecurityChampion" team from the input list: **queue.securitychampion_parent_teams.txt**
  - Each run will create a log file (e.g. github_add_team_securitychampion.py.2024-05-14_17:59:46-447753.log)
  - the parameter "-o run_securitychamption_result.csv" will create a csv file containing the result of each item
 
 ```shell
-python github_add_securitychampion_team.py -i queue_securitychampion_parent_teams.txt -o run_securitychamption.result.csv
+python github_add_securitychampion_team.py \
+  -i queue.securitychampion_parent_teams.txt \
+  -o run.securitychamption.result.csv
 ```
 
-An example output of the **run_securitychamption.result.csv** file (which can be easily imported to Excel):
+An example output of the **run.securitychamption.result.csv** file (which can be easily imported to Excel):
 
 ```shell
 TEAM_NAME,RUN_OK
@@ -53,13 +64,13 @@ add_security_team:ERROR:failed to locate team "Apple"
 ### 4) Generate a list of Teams for Maintainers members to be copied
 
 Let's go ahead and generate an input list of "parent" Teams' Maintainers to be copied to the SecurityChamption Teams
- - output a new queue called: **queue_securitychampion_maintainer_copy.txt**
+ - output to a new queue called: **queue.securitychampion_maintainer_copy.txt**
 
 ```shell
-python generate_teams_maintainer_list.py queue_securitychampion_parent_teams.txt | tee queue_securitychampion_maintainer_copy.txt
+python generate_teams_maintainer_list.py queue.securitychampion_parent_teams.txt | tee queue.securitychampion_maintainer_copy.txt
 ```
 
-An example output of the **run_maintainer_copy.result.csv** file (which can be easily imported to Excel):
+An example output of the **queue.securitychampion_maintainer_copy.txt** file (which can be easily imported to Excel):
 
 ```shell
 SOURCE_TEAM,DESTINATION_TEAM
@@ -75,29 +86,20 @@ Let's process the list:
  - Copy the Maintainer members from SOURCE_TEAM to DESTINATON_TEAM
 
 ```shell
-python github_copy_maintainers.py -i queue_securitychampion_maintainer_copy.txt -o run_maintainer_copy.result.csv
+python github_copy_maintainers.py \
+  -i queue.securitychampion_maintainer_copy.txt \
+  -o run.maintainer_copy.result.csv
 ```
 
-An example output of the **run_maintainer_copy.result.csv** file (which can be easily imported to Excel):
+An example log of the run: **github_copy_maintainers.py.2024-05-14_18:50:42-586906.log**
 
 ```shell
-SOURCE_TEAM,DESTINATION_TEAM,RUN_OK
-Banana,Banana_SecurityChampion,False
-Strawberry,Strawberry_SecurityChampion,False
-StarfoxHUB_1010,StarfoxHUB_1010_SecurityChampion,True
-Apple,Apple_SecurityChampion,False
+copy_maintainers:ERROR:failed to locate the source team "Banana"
+copy_maintainers:ERROR:failed to locate the source team "Strawberry"
+copy_maintainers:INFO:OK:sucessfully added maintainers to team "StarfoxHUB_1010_SecurityChampion"
+copy_maintainers:ERROR:failed to locate the source team "Apple"
 ```
-
-An example log of the run: **github_add_securitychampion_team.py.2024-05-14_18:29:05-266219.log**
-
-```shell
-add_security_team:ERROR:failed to locate team "Banana"
-add_security_team:ERROR:failed to locate team "Strawberry"
-_add_child_team:INFO:OK:security team "StarfoxHUB_1010_SecurityChampion" created successfully
-add_security_team:ERROR:failed to locate team "Apple"
-```
-
-An example log:
+An example output of the **run.maintainer_copy.result.csv** file (which can be easily imported to Excel):
 
 ```shell
 SOURCE_TEAM,DESTINATION_TEAM,RUN_OK
