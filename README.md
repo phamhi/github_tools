@@ -138,7 +138,7 @@ An example log of the run: **github_add_securitychampion_team.py.20240514_182905
 ```shell
 add_security_team:ERROR:failed to locate team "Banana"
 add_security_team:ERROR:failed to locate team "Strawberry"
-_add_child_team:INFO:OK:security team "StarfoxHUB_1010_SecurityChampion" deleted successfully
+_add_child_team:INFO:OK:SecurityChamption team "StarfoxHUB_1010_SecurityChampion" deleted successfully
 add_security_team:ERROR:failed to locate team "Apple"
 ```
 
