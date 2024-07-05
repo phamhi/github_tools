@@ -109,6 +109,40 @@ StarfoxHUB_1010,StarfoxHUB_1010_SecurityChampion,True
 Apple,Apple_SecurityChampion,False
 ```
 
+## Misc Maintenance Scripts
+
+### Delete the SecurityChampion teams
+
+To delete the "SecurityChampion" team from the input list: **queue.securitychampion_parent_teams.txt**
+ - Each run will create a log file (e.g. github_delete_team_securitychampion.py.20240514_175946_447753.log)
+ - the parameter "-o run_securitychamption_result.csv" will create a csv file containing the result of each item
+
+```shell
+python github_delete_securitychampion_team.py \
+  -i queue.securitychampion_parent_teams.txt \
+  -o run.securitychamption.result.csv
+```
+
+An example output of the **run.securitychamption.result.csv** file (which can be easily imported to Excel):
+
+```shell
+TEAM_NAME,RUN_OK
+Banana,False
+Strawberry,False
+StarfoxHUB_1010,True
+Apple,False
+```
+
+An example log of the run: **github_add_securitychampion_team.py.20240514_182905_266219.log**
+
+```shell
+add_security_team:ERROR:failed to locate team "Banana"
+add_security_team:ERROR:failed to locate team "Strawberry"
+_add_child_team:INFO:OK:security team "StarfoxHUB_1010_SecurityChampion" deleted successfully
+add_security_team:ERROR:failed to locate team "Apple"
+```
+
+
 ## generate_teams_maintainer_list.py
 
 Invoke the help argument
