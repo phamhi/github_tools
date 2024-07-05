@@ -216,21 +216,21 @@ add_security_team:INFO:failed to locate team "myteam2"
 _add_child_team:INFO:security team "starfox_SecurityChampion" created successfully in the parent team "starfox_SecurityChampion"
 ```
 
-## github_get_all_teams.py
+## github_get_securitychampion_parent_teams.py
 
 Invoke the help argument
 
 ```shell
 % python github_get_all_teams.py --help
-usage: github_get_teams.py [-h] [--debug] [--error-only] [-p]
+usage: github_get_securitychampion_parent_teams.py [-h] [--debug]
+                                                   [--error-only]
 
-Get the names of Github teams.
+Get SecurityChampion "parent"-type Teams.
 
-options:
-  -h, --help         show this help message and exit
-  --debug            Display "debugging" in output (defaults to "info")
-  --error-only       Display "error" in output only (filters "info")
-  -p, --parent-only  Get Teams that are parent type only.
+optional arguments:
+  -h, --help    show this help message and exit
+  --debug       Display "debugging" in output (defaults to "info")
+  --error-only  Display "error" in output only (filters "info")
 ```
 
 
@@ -240,19 +240,18 @@ export GITHUB_ORG=myorg
 ```
 
 ```shell
-python github_add_team_securitychampion.py 
+python github_get_securitychampion_parent_teams.py --debug | tee queue.securitychampion_parent_teams.txt
 ```
 
-Example output
+An example output of the **queue.securitychampion_parent_teams.txt** file 
+
 ```shell
-[{'description': 'My team',
-  'html_url': 'https://github.com/orgs/myorg/teams/myteam',
-  'id': 123456,
-  ...
-  },
-  ...
-]
+Banana
+Strawberry
+StarfoxHUB_1010
+Apple
 ```
+
 ## github_delete_team_securitychampion.py
 
 Invoke the help argument
