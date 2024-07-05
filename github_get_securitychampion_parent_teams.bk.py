@@ -9,7 +9,6 @@ import sys
 
 from pprint import pprint
 from urllib3.exceptions import InsecureRequestWarning
-from datetime import datetime
 
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
@@ -63,56 +62,10 @@ def get_securitychampion_parent_teams() -> (list):
         if not bool_result:
             continue
         # /if
-
-        # print the team right away
-        print(str_team_name, flush=True)
         list_proper_team_names.append(str_team_name)
     # /for
 
     return list_proper_team_names
-# /def
-
-def _handle_github_rate_limit():
-    dict_params = dict_global_params.copy()
-
-    str_rest_url = "https://api.github.com/rate_limit"
-    res = requests.get(str_rest_url,
-                       verify=bool_ssl_verify,
-                       headers=dict_global_headers,
-                       params=dict_params)
-
-    # get current ime
-    float_current_time = time.time()
-
-    int_rate_limit = int(res.headers.get('X-RateLimit-Limit'))
-    int_rate_remaining = int(res.headers.get('X-RateLimit-Remaining'))
-    int_rate_reset = int(res.headers.get('X-RateLimit-Reset'))
-
-    if res.status_code == 200:
-        if int_rate_remaining == 0:
-            logger.debug(f'rate limit:{int_rate_limit}')
-            logger.debug(f'remaining requests:{int_rate_remaining}')
-            logger.debug(f'current time:{datetime.fromtimestamp(float_current_time)}')
-            logger.debug(f'rate limit reset time:{datetime.fromtimestamp(int_rate_reset)}')
-
-            float_sleep_time = int_rate_reset - time.time()
-            extra_buffer = 60 * 10 # extra 10 minutes
-            float_sleep_time += extra_buffer
-
-            if float_sleep_time > 0:
-                logger.debug(f'rate limit hit:sleeping for {float_sleep_time:.2f} seconds.')
-                time.sleep(float_sleep_time)
-                logger.debug(f'rate limit reset:continuing...')
-            # /fi
-            else:
-                logger.debug(f'rate limit should have reset:continuing...')
-            # /else
-        # /if
-    # /if
-    else:
-        logger.debug(f'failed to fetch rate limit info:status code: {res.status_code}')
-    # /else
-    logger.debug(f'rate limit has not been reached:remaining requests:{int_rate_remaining}')
 # /def
 
 def _is_proper_parent_team(str_team_name: str, list_child_prefixes: list) -> (bool):
@@ -151,7 +104,6 @@ def _get_child_teams(str_team_name: str) -> (dict):
     str_rest_url = f'https://api.github.com/orgs/{str_github_org}/teams/{str_team_name}/teams'
     # logger.debug(f'action="get",rest_url="{str_rest_url}"')
 
-    _handle_github_rate_limit()
     res = requests.get(str_rest_url,
                        verify=bool_ssl_verify,
                        headers=dict_global_headers,
@@ -180,7 +132,6 @@ def _get_teams_per_page(page: int, per_page=100) -> (list):
     dict_params['per_page'] = per_page
     dict_params['page'] = page
 
-    _handle_github_rate_limit()
     res = requests.get(f'https://api.github.com/orgs/{str_github_org}/teams',
                        verify=bool_ssl_verify,
                        headers=dict_global_headers,
@@ -272,14 +223,13 @@ if __name__ == '__main__':
     logger.debug(f'github org:"{str_github_org}"')
 
     list_team_names =  get_securitychampion_parent_teams()
-    logger.debug(f'found a total of {len(list_team_names)} team(s)')
-
-    # for i in list_team_names:
-    #     print(i)
-    # /for
+    logger.debug(f'got a total of {len(list_team_names)} team(s)')
 
     if not len(list_team_names):
         exit(1)
     # /if
 
-# /if
+    for i in list_team_names:
+        print(i)
+    # /for
+# # /if

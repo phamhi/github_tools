@@ -7,9 +7,11 @@ import argparse
 import logging
 import time
 
-from datetime import datetime
 from collections import OrderedDict
 from urllib3.exceptions import InsecureRequestWarning
+from datetime import datetime
+
+
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -18,6 +20,12 @@ requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 str_github_token = os.getenv('GITHUB_TOKEN')
 str_github_org = os.getenv('GITHUB_ORG')
 
+# str_default_github_org = 'myorg' # default Github Org
+# str_default_output_file = 'output.json'
+
+str_default_team_security_postfix_name = 'SecurityChampion'
+
+int_sleep = 0
 bool_ssl_verify = False
 
 dict_global_headers = {
@@ -33,38 +41,35 @@ dict_global_params = dict(
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-def copy_maintainers(str_source_team, str_destination_team) -> (bool):
-    if not str_source_team or not str_destination_team:
+def delete_security_team(str_team_parent_name:str, str_team_security_postfix_name:str) -> (bool):
+    if not str_team_parent_name:
         return False
-    # /if
+    #/if
 
-    dict_source_team = _get_team(str_source_team)
-    if not dict_source_team:
-        logger.error(f'failed to locate the source team "{str_source_team}"')
-        return False
-    # /fi
-
-    dict_destination_team = _get_team(str_destination_team)
-    if not dict_destination_team:
-        logger.error(f'failed to locate the destination team "{str_source_team}"')
+    dict_team_parent = _get_team(str_team_parent_name)
+    if not dict_team_parent:
+        logger.error(f'failed to locate team "{str_team_parent_name}"')
         return False
     # /fi
 
     # refresh for proper cases
-    str_source_team = dict_source_team['name']
-    logger.debug(f'str_source_team:"{str_source_team}"')
-    str_destination_team = dict_destination_team['name']
-    logger.debug(f'str_destination_team:"{str_destination_team}"')
+    str_team_parent_name = dict_team_parent['name']
+    str_team_security_name = f'{str_team_parent_name}_{str_team_security_postfix_name}'
+    logger.debug(f'str_security_team_name:"{str_team_security_name}"')
 
-    list_maintainers = _get_maintainer(str_source_team)
-    logger.debug(f'list_maintainers={[i["login"] for i in list_maintainers]}')
+    # check if security team already exists
+    dict_team_security = _get_team(str_team_security_name)
+    if not dict_team_security:
+        logger.info(f'SecurityChampion team "{str_team_security_name}" does not exist: nothing to do')
+        return True
+    # /if
 
-    for dict_user in list_maintainers:
-        dict_result = _set_maintainer(str_destination_team, dict_user['login'])
-    # /for
+    if not _delete_team(str_team_security_name):
+        return False
+    # /if
 
-    logger.info(f'OK:sucessfully added maintainers to team "{str_destination_team}"')
     return True
+    # /if
 # /def
 
 def _handle_github_rate_limit():
@@ -110,6 +115,62 @@ def _handle_github_rate_limit():
     logger.debug(f'rate limit has not been reached:remaining requests:{int_rate_remaining}')
 # /def
 
+def _get_team_maintainers(str_team_name: str) -> (dict):
+    dict_params = dict_global_params.copy()
+    dict_params['role'] = 'maintainer'
+
+    str_rest_url = f'https://api.github.com/orgs/{str_github_org}/teams/{str_team_name}'
+    logger.debug(f'action="get",rest_url="{str_rest_url}"')
+
+    _handle_github_rate_limit()
+    res = requests.get(str_rest_url,
+                       verify=bool_ssl_verify,
+                       headers=dict_global_headers,
+                       params=dict_params)
+    logger.debug(f'res.status_code = {res.status_code}')
+
+    if res.status_code == 401:
+        logger.error(f'credential rejected')
+        return {}
+    # /fi
+
+    list_maintainers = json.loads(res.text)
+    if res.status_code == 200:
+        logger.debug(f'successfully retrieved maintainers for "{str_team_name}"')
+    else:
+        logger.debug(f'failed to retrieve maintainers for "{str_team_name}"')
+        return {}
+    # /else
+    return list_maintainers
+# /def
+
+def _get_child_teams(str_team_name: str) -> (list):
+    dict_params = dict_global_params.copy()
+
+    str_rest_url = f'https://api.github.com/orgs/{str_github_org}/teams/{str_team_name}/teams'
+    logger.debug(f'action="get",rest_url="{str_rest_url}"')
+
+    _handle_github_rate_limit()
+    res = requests.get(str_rest_url,
+                       verify=bool_ssl_verify,
+                       headers=dict_global_headers,
+                       params=dict_params)
+    logger.debug(f'res.status_code = {res.status_code}')
+
+    if res.status_code == 401:
+        logger.error(f'credential rejected')
+        return {}
+    # /fi
+
+    list_child_teams = json.loads(res.text)
+    if res.status_code == 200:
+        logger.debug(f'successfully retrieved child teams for "{str_team_name}"')
+    else:
+        logger.debug(f'failed to retrieve child teams for "{str_team_name}"')
+        return {}
+    # /else
+    return list_child_teams
+# /def
 
 def _get_team(str_team_name: str) -> (dict):
     dict_params = dict_global_params.copy()
@@ -129,83 +190,54 @@ def _get_team(str_team_name: str) -> (dict):
         return {}
     # /fi
 
-    dict_result = json.loads(res.text)
+    dict_team = json.loads(res.text)
     if res.status_code == 200:
         logger.debug(f'successfully retrieved team "{str_team_name}"')
     else:
         logger.debug(f'failed to retrieve team "{str_team_name}"')
-        logger.debug(dict_result)
         return {}
     # /else
-    return dict_result
+    return dict_team
 # /def
 
-def _get_maintainer(str_team_name: str) -> (list):
-    dict_params = dict_global_params.copy()
-    dict_params['role'] = 'maintainer'
 
-    str_rest_url = f'https://api.github.com/orgs/{str_github_org}/teams/{str_team_name}/members'
-    logger.debug(f'action="get",rest_url="{str_rest_url}"')
+def _delete_team(str_team_name:str) -> (bool):
+    dict_params = dict_global_params.copy()
+
+    str_rest_url = f'https://api.github.com/orgs/{str_github_org}/teams/{str_team_name}'
+    logger.debug(f'action="delete",rest_url="{str_rest_url}"')
 
     _handle_github_rate_limit()
-    res = requests.get(str_rest_url,
-                       verify=bool_ssl_verify,
-                       headers=dict_global_headers,
-                       params=dict_params)
+    res = requests.delete(str_rest_url,
+                          verify=bool_ssl_verify,
+                          headers=dict_global_headers,
+                          params=dict_params)
     logger.debug(f'res.status_code = {res.status_code}')
 
     if res.status_code == 401:
         logger.error(f'credential rejected')
-        return []
+        return False
     # /fi
 
-    list_result = json.loads(res.text)
-    if res.status_code == 200:
-        logger.debug(f'successfully retrieved maintainers "{str_team_name}"')
+    if res.status_code == 204:
+        logger.info(f'OK:SecurityChampion team "{str_team_name}" deleted successfully')
+        return True
     else:
-        logger.debug(f'failed to retrieve maintainers "{str_team_name}"')
-        logger.debug(list_result)
-        return []
+        logger.error(f'FAILED:could not delete team "{str_team_name}":status code: {res.status_code}')
+        logger.error(f'{res.text}')
+        return False
     # /else
-    return list_result
 # /def
 
-def _set_maintainer(str_team_name:str, str_login:list) -> (dict):
-    dict_params = dict_global_params.copy()
-    dict_params['role'] = 'maintainer'
-
-    str_rest_url = f'https://api.github.com/orgs/{str_github_org}/teams/{str_team_name}/memberships/{str_login}'
-    logger.debug(f'action="put",rest_url="{str_rest_url}"')
-
-    _handle_github_rate_limit()
-    res = requests.put(str_rest_url,
-                       verify=bool_ssl_verify,
-                       headers=dict_global_headers,
-                       params=dict_params,
-                       json={ 'role':'maintainer' })
-    logger.debug(f'res.status_code = {res.status_code}')
-
-    if res.status_code == 401:
-        logger.error(f'credential rejected')
-        return {}
-    # /fi
-
-    dict_result = json.loads(res.text)
-    if res.status_code == 200:
-        logger.debug(f'successfully gave maintainer role to "{str_login}" in team "{str_team_name}')
-    else:
-        logger.debug(f'failed to give maintainer role to "{str_login}" in team "{str_team_name}')
-        logger.debug(dict_result)
-        return {}
-    # /else
-    return dict_result
+def remove_duplicates(list_input:list) -> (list):
+    return list(OrderedDict.fromkeys(list_input))
 # /def
 
 # ----------------------------------------------------------------------------------------------------------------------
 
 def parse_args() :
     parser = argparse.ArgumentParser(
-        description='Archive Github repo(s).'
+        description='Delete the SecurityChampion Github Team.'
     )
 
     parser.add_argument(
@@ -224,9 +256,8 @@ def parse_args() :
 
     parser.add_argument(
         '-i', '--input-file',
-        help='File contains list of repos to be processed.',
-        dest='input_file',
-        default='',
+        help='File contains list of Teams to be processed.',
+        dest='input_file'
     )
 
     parser.add_argument(
@@ -235,63 +266,19 @@ def parse_args() :
         dest='output_file'
     )
 
-    parser.add_argument(
-        '-s', '--source-team',
-        help='Copy maintainers from this source team.',
-        dest='source_team',
-        default='',
-    )
-
-    parser.add_argument(
-        '-d', '--destination-team',
-        help='Copy maintainers to this destination team',
-        dest='destination_team',
-        default='',
-    )
-
-    # parser.add_argument('repo_name', nargs='?', default='')
+    parser.add_argument('team_name', nargs='?', default='')
 
     args = parser.parse_args()
     return parser, args
 # /def
 
-
-def _get_first_char(s:str) -> str:
-    return s[0] if s else ''
-# /def
-
-def _process_input_file(str_input_file: str) -> OrderedDict:
-    if not str_input_file:
-        return OrderedDict()
+def _get_updated_team_name(str_team_name) -> str:
+    dict_team = _get_team(str_team_name)
+    if dict_team:
+        return dict_team['name']
     # /if
-
-    ordereddict_queue = OrderedDict()
-    logger.debug(f'input_file:"{str_input_file}"')
-
-    with open(str_input_file, 'r') as f:
-        list_lines = f.read().splitlines()
-        logger.debug(f'list_lines="{list_lines}"')
-        for str_line in list_lines:
-            # skip header line (assuming all uppercase)
-            if str_line.isupper():
-                continue
-            # /if
-
-            # skip if first non-space character is a '#' character
-            if _get_first_char(str_line) == '#':
-                continue
-            # /if
-
-            list_split = str_line.split(',')
-            if len(list_split)<2:
-                list_split.append('')
-            # /if
-            logger.debug(f'list_split="{list_split}"')
-            ordereddict_queue[list_split[0]] = list_split[1]
-        # /for
-    # /with
-    return ordereddict_queue
-# /def
+    return str_team_name
+#/if
 
 def create_logger(str_basename:str) -> logging.Logger:
     str_basename = os.path.basename(str_basename)
@@ -321,14 +308,11 @@ logger = create_logger(sys.argv[0])
 if __name__ == '__main__':
     # parse arguments passed
     parser, args = parse_args()
-
-    int_verbosity = args.verbosity
     #
+    int_verbosity = args.verbosity
+    str_team_name = args.team_name
     str_input_file = args.input_file
     str_output_file = args.output_file
-    #
-    str_source_team = args.source_team
-    str_destination_team = args.destination_team
 
     # set logging verbosity
     logger.setLevel(int_verbosity)
@@ -344,61 +328,48 @@ if __name__ == '__main__':
         sys.exit(1)
     # /if
 
-    # if (not str_repo_name) and (not str_input_file):
-    #     parser.print_help()
-    # # /if
+    if (not str_team_name) and (not str_input_file):
+        parser.print_help()
+    # /if
 
     logger.debug(f'github_org:"{str_github_org}"')
 
-    logger.debug(f'source_team:"{str_source_team}"')
-    logger.debug(f'destination_team:"{str_destination_team}"')
-
-    logger.debug(f'input_file:"{str_input_file}"')
-    logger.debug(f'output_file:"{str_output_file}"')
-
-    # if str_input_file is not set..
-    # str_source_team and str_destination_team need to be set
-    if not str_input_file and (not str_source_team or not str_destination_team):
-        parser.print_help()
-        sys.exit(1)
+    if str_output_file:
+        logger.debug(f'output_file:"{str_output_file}"')
     # /if
 
-    ordereddict_queue = OrderedDict()
+    list_queue = []
     if str_input_file:
-        ordereddict_queue = _process_input_file(str_input_file)
-    else:
-        ordereddict_queue[str_source_team] = str_destination_team
+        logger.debug(f'input_file:"{str_input_file}"')
+        with open(str_input_file, 'r') as f:
+            list_team_names = f.read().splitlines()
+            list_team_names = [i for i in list_team_names if i]
+            for str_name in list_team_names:
+                list_queue.append(str_name)
+            # /for
+        # /with
+    elif str_team_name:
+        list_queue.append(str_team_name)
     # /if
 
-    logger.debug(f'ordereddict_queue="{ordereddict_queue}"')
+    list_queue = remove_duplicates(list_queue)
+    logger.debug(f'list_queue:"{list_queue}"')
 
     ordereddict_output_file = OrderedDict()
-    for str_loop_source in ordereddict_queue:
-        str_loop_destination = ordereddict_queue[str_loop_source]
 
-        if not str_loop_source or not str_loop_destination:
-            logger.debug(f'skipping teams: "{str_loop_source}" and "{str_loop_destination}"')
-            continue
-        # /if
-
-        logger.debug(f'str_loop_source="{str_loop_source}"')
-        logger.debug(f'str_loop_destination="{str_loop_destination}"')
-
-        bool_run_result = copy_maintainers(str_loop_source, str_loop_destination)
-        # queue = _get_updated_repo_name(queue)
-
-        ordereddict_output_file[str_loop_source] = {'destination_team': str_loop_destination,
-                                                    'run_ok':bool_run_result}
+    for str_queue_name in list_queue:
+        logger.debug(f'queue_name:"{str_queue_name}"')
+        bool_run_result = delete_security_team(str_queue_name, str_default_team_security_postfix_name)
+        str_queue_name = _get_updated_team_name(str_queue_name)
+        ordereddict_output_file[str_queue_name] = bool_run_result
     # /for
 
     if str_output_file:
         logger.debug(f'{ordereddict_output_file}')
         with open(str_output_file, 'w') as f:
-            f.write('SOURCE_TEAM,DESTINATION_TEAM,RUN_OK\n')
-            for str_loop_source in ordereddict_output_file:
-                str_loop_destination = ordereddict_output_file[str_loop_source]['destination_team']
-                bool_result = ordereddict_output_file[str_loop_source]['run_ok']
-                f.writelines(f'{str_loop_source},{str_loop_destination},{bool_result}\n')
+            f.write('TEAM_NAME,RUN_OK\n')
+            for k in ordereddict_output_file:
+                f.writelines(f'{k},{ordereddict_output_file[k]}\n')
             # /for
         # /with
     #/if

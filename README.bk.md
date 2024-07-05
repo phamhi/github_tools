@@ -18,7 +18,7 @@ We need to get all Github Teams that :
  - are the parents of the "XYZ_Admin" and "XYZ_User" child Teams
 
 ```shell
-python github_get_securitychampion_parent_teams.py --debug | tee queue.securitychampion_parent_teams.txt
+python github_get_securitychampion_parent_teams.py | tee queue.securitychampion_parent_teams.txt
 ```
 
 An example output of the **queue.securitychampion_parent_teams.txt** file 
@@ -33,7 +33,7 @@ Apple
 ### 3) Create the SecurityChampion teams
 
 Let's go ahead and create the "SecurityChampion" team from the input list: **queue.securitychampion_parent_teams.txt**
- - Each run will create a log file (e.g. github_add_team_securitychampion.py.20240514_175946_447753.log)
+ - Each run will create a log file (e.g. github_add_team_securitychampion.py.2024-05-14_17:59:46-447753.log)
  - the parameter "-o run_securitychamption_result.csv" will create a csv file containing the result of each item
 
 ```shell
@@ -52,7 +52,7 @@ StarfoxHUB_1010,True
 Apple,False
 ```
 
-An example log of the run: **github_add_securitychampion_team.py.20240514_182905_266219.log**
+An example log of the run: **github_add_securitychampion_team.py.2024-05-14_18:29:05-266219.log**
 
 ```shell
 add_security_team:ERROR:failed to locate team "Banana"
@@ -91,7 +91,7 @@ python github_copy_maintainers.py \
   -o run.maintainer_copy.result.csv
 ```
 
-An example log of the run: **github_copy_maintainers.py.20240514_185042_586906.log**
+An example log of the run: **github_copy_maintainers.py.2024-05-14_18:50:42-586906.log**
 
 ```shell
 copy_maintainers:ERROR:failed to locate the source team "Banana"
