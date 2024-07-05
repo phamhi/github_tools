@@ -37,7 +37,7 @@ Let's go ahead and create the "SecurityChampion" team from the input list: **que
  - the parameter "-o run_securitychamption_result.csv" will create a csv file containing the result of each item
 
 ```shell
-python github_add_securitychampion_team.py \
+python github_add_securitychampion_team.py --debug \
   -i queue.securitychampion_parent_teams.txt \
   -o run.securitychamption.result.csv
 ```
@@ -86,7 +86,7 @@ Let's process the list:
  - Copy the Maintainer members from SOURCE_TEAM to DESTINATON_TEAM
 
 ```shell
-python github_copy_maintainers.py \
+python github_copy_maintainers.py --debug \
   -i queue.securitychampion_maintainer_copy.txt \
   -o run.maintainer_copy.result.csv
 ```
@@ -118,7 +118,7 @@ To delete the "SecurityChampion" team from the input list: **queue.securitychamp
  - the parameter "-o run_securitychamption_result.csv" will create a csv file containing the result of each item
 
 ```shell
-python github_delete_securitychampion_team.py \
+python github_delete_securitychampion_team.py --debug \
   -i queue.securitychampion_parent_teams.txt \
   -o run.securitychamption.result.csv
 ```
@@ -252,4 +252,47 @@ Example output
   },
   ...
 ]
+```
+## github_delete_team_securitychampion.py
+
+Invoke the help argument
+
+Personal Access Token (PAT) requires the following permissions:
+- admin:org: write:org, read:org
+
+Remember to *authorize* in org if SSO is used.
+
+```shell
+% python github_delete_team_securitychampion.py --help
+usage: github_delete_team_securitychampion.py [-h] [--debug] [--error-only] [-i INPUT_FILE] [-o OUTPUT_FILE] [team_name]
+
+Create the SecurityChampion Github Team.
+
+positional arguments:
+  team_name
+
+options:
+  -h, --help            show this help message and exit
+  --debug               Display "debugging" in output (defaults to "info").
+  --error-only          Display "error" in output only (filters "info").
+  -i INPUT_FILE, --input-file INPUT_FILE
+                        File contains list of Teams to be processed.
+  -o OUTPUT_FILE, --output-result OUTPUT_FILE
+                        Result of the run in CSV format.
+```
+
+```shell
+export GITHUB_TOKEN=mytoken
+export GITHUB_ORG=myorg
+```
+
+```shell
+python github_delete_team_securitychampion.py myteam1 myteam2 starfox
+```
+
+Example output
+```shell
+add_security_team:INFO:failed to locate team "myteam1"
+add_security_team:INFO:failed to locate team "myteam2"
+_add_child_team:INFO:SecurityChamption team "starfox_SecurityChampion" deleted successfully
 ```
