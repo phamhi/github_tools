@@ -9,7 +9,7 @@ import os
 import sys
 import logging
 import argparse
-import time
+import urllib3
 from typing import List, Optional
 import requests
 from requests.adapters import HTTPAdapter
@@ -27,6 +27,12 @@ class GitHubAPIClient:
     def _create_session(self) -> requests.Session:
         """Creates a session with retry logic and headers."""
         session = requests.Session()
+
+        # Disable SSL verification
+        session.verify = False
+
+        # Suppress SSL verification warnings
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         # Configure retry strategy
         retry_strategy = Retry(
@@ -75,13 +81,13 @@ class GitHubAPIClient:
 
 def validate_environment() -> tuple[str, str]:
     """Validates and returns required environment variables."""
-    token = os.getenv("GIT_PAT")
-    org = os.getenv("GIT_ORG")
+    token = os.getenv("GITHUB_TOKEN")
+    org = os.getenv("GITHUB_ORG")
 
     if not token:
-        raise ValueError("GIT_PAT environment variable is not set")
+        raise ValueError("GITHUB_TOKEN environment variable is not set")
     if not org:
-        raise ValueError("GIT_ORG environment variable is not set")
+        raise ValueError("GITHUB_ORG environment variable is not set")
 
     return token, org
 
@@ -103,13 +109,17 @@ def process_repo(client: GitHubAPIClient, repo_name: str) -> None:
         commit = commit_info['commit']
         sha = commit_info['sha']
 
-        # Prefer committer over author if available
-        if commit.get('committer'):
-            username = commit['committer'].get('name', 'Unknown')
+        # Handle null committer/author cases
+        if commit_info.get('committer') is not None:
+            username = commit_info['committer'].get('login', 'Unknown')
             date = commit['committer'].get('date', '')
-        else:
-            username = commit['author'].get('name', 'Unknown')
+        elif commit_info.get('author') is not None:
+            username = commit_info['author'].get('login', 'Unknown')
             date = commit['author'].get('date', '')
+        else:
+            # Fallback to committer name from commit object
+            username = commit['committer'].get('name', 'Unknown').replace(' ', '_')
+            date = commit['committer'].get('date', '')
 
         repo_url = f"https://github.com/{client.org}/{repo_name}"
         print(f"{repo_url},{username},{date},{sha}")
