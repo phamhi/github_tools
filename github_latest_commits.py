@@ -79,6 +79,46 @@ class GitHubAPIClient:
             logging.error(f"Error fetching commits for {repo_name}: {str(e)}")
             return None
 
+    def get_repo_details(self, repo_name: str) -> Optional[dict]:
+        """Fetches repository details including creation date."""
+        try:
+            url = f"{self.base_url}/repos/{self.org}/{repo_name}"
+            response = self.session.get(url)
+
+            if response.status_code == 404:
+                logging.error(f"Repository not found: {repo_name}")
+                return None
+
+            response.raise_for_status()
+            return response.json()
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error fetching repository details for {repo_name}: {str(e)}")
+            return None
+
+    def get_latest_pr(self, repo_name: str) -> Optional[dict]:
+        """Fetches the latest pull request for a repository."""
+        try:
+            url = f"{self.base_url}/repos/{self.org}/{repo_name}/pulls"
+            response = self.session.get(url, params={"state": "all", "sort": "created", "direction": "desc", "per_page": 1})
+
+            if response.status_code == 404:
+                logging.error(f"Repository not found: {repo_name}")
+                return None
+
+            response.raise_for_status()
+            prs = response.json()
+
+            if not prs:
+                logging.debug(f"No PRs found in repository: {repo_name}")
+                return None
+
+            return prs[0]
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error fetching PRs for {repo_name}: {str(e)}")
+            return None
+
 def validate_environment() -> tuple[str, str]:
     """Validates and returns required environment variables."""
     token = os.getenv("GITHUB_TOKEN")
@@ -101,28 +141,47 @@ def read_repo_list(file_path: str) -> List[str]:
         sys.exit(1)
 
 def process_repo(client: GitHubAPIClient, repo_name: str) -> None:
-    """Processes a single repository and prints commit information."""
+    """Processes a single repository and prints commit and PR information."""
     commit_info = client.get_latest_commit(repo_name)
+    repo_info = client.get_repo_details(repo_name)
+    pr_info = client.get_latest_pr(repo_name)
 
-    if commit_info:
+    if commit_info and repo_info:
         # Extract commit information
         commit = commit_info['commit']
         sha = commit_info['sha']
+        created_at = repo_info['created_at']
+        # created_by = repo_info['owner']['login']
 
-        # Handle null committer/author cases
+        committer = ''
+        author = ''
+        # Handle null committer cases
         if commit_info.get('committer') is not None:
-            username = commit_info['committer'].get('login', 'Unknown')
+            committer = commit_info['committer'].get('login', 'Unknown')
             date = commit['committer'].get('date', '')
-        elif commit_info.get('author') is not None:
-            username = commit_info['author'].get('login', 'Unknown')
-            date = commit['author'].get('date', '')
         else:
             # Fallback to committer name from commit object
-            username = commit['committer'].get('name', 'Unknown').replace(' ', '_')
+            committer = commit['committer'].get('name', 'Unknown').replace(',', '-').replace(' ', '')
             date = commit['committer'].get('date', '')
 
+        # Handle null author cases
+        if commit_info.get('author') is not None:
+            author = commit_info['author'].get('login', 'Unknown')
+        else:
+            # Fallback to author name from commit object
+            author = commit['author'].get('name', 'Unknown').replace(',', '-').replace(' ', '')
+
+        # Add PR information
+        pr_created_at = "N/A"
+        pr_author = "N/A"
+        pr_url = "N/A"
+        if pr_info:
+            pr_created_at = pr_info['created_at']
+            pr_author = pr_info['user']['login'] if pr_info['user'] else "Unknown"
+            pr_url = pr_info['html_url']
+
         repo_url = f"https://github.com/{client.org}/{repo_name}"
-        print(f"{repo_url},{username},{date},{sha}")
+        print(f"{repo_url},{created_at},{date},{committer},{author},{sha},{pr_created_at},{pr_author},{pr_url}")
 
 def main():
     """Main function to handle script execution."""
@@ -155,7 +214,7 @@ def main():
             parser.error("Either provide repository names as arguments or use --input file")
 
         if repos:
-            print ("GIT URL,Committer,Commit Date,Commit ID")
+            print("GIT URL,Repo Created At,Latest Commit Date,Committer,Commit Author,Latest Commit ID,Latest PR Date,PR Author,PR URL")
 
         for repo in repos:
             process_repo(client, repo)
