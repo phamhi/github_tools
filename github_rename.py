@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 """
-GitHub Repository Latest Commit Fetcher
-Retrieves the latest commit information for specified GitHub repositories.
+GitHub Repository Renaming Tool
+Renames GitHub repositories based on input file specifications.
 """
 
 import os
@@ -10,7 +10,8 @@ import sys
 import logging
 import argparse
 import urllib3
-from typing import List, Optional
+import csv
+from typing import List, Tuple, Optional
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -142,6 +143,89 @@ class GitHubAPIClient:
             logging.error(f"Error fetching PRs for {repo_name}: {str(e)}")
             return None
 
+    def get_repo_name(self, repo_name: str) -> Optional[str]:
+        """Gets the current name of a repository.
+        
+        Args:
+            repo_name (str): Name of the repository to check
+            
+        Returns:
+            Optional[str]: Current repository name or None if not found
+        """
+        try:
+            url = f"{self.base_url}/repos/{self.org}/{repo_name}"
+            response = self.session.get(url)
+            
+            if response.status_code == 404:
+                return None
+                
+            response.raise_for_status()
+            return response.json().get('name')
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error checking repository {repo_name}: {str(e)}")
+            return None
+
+    def does_repo_exist(self, repo_name: str) -> bool:
+        """Checks if a repository exists.
+        
+        Args:
+            repo_name (str): Name of the repository to check
+            
+        Returns:
+            bool: True if repository exists, False otherwise
+        """
+        try:
+            url = f"{self.base_url}/repos/{self.org}/{repo_name}"
+            response = self.session.get(url)
+            return response.status_code == 200
+        except requests.exceptions.RequestException:
+            return False
+
+    def rename_repository(self, old_name: str, new_name: str) -> Tuple[bool, Optional[str]]:
+        """Renames a repository.
+        
+        Args:
+            old_name (str): Current name of the repository
+            new_name (str): New name for the repository
+            
+        Returns:
+            Tuple[bool, Optional[str]]: (Success status, Error message if any)
+        """
+        try:
+            # First check if the source repository exists
+            current_name = self.get_repo_name(old_name)
+            if current_name is None:
+                error_msg = f"Source repository not found: {old_name}"
+                logging.error(error_msg)
+                return False, error_msg
+                
+            # Check if the repository is already renamed - consider this a success
+            if current_name == new_name:
+                return True, f"Repository is already named '{new_name}'"
+
+            # Check if target name already exists
+            if self.does_repo_exist(new_name):
+                error_msg = f"Cannot rename: target repository '{new_name}' already exists"
+                logging.error(error_msg)
+                return False, error_msg
+
+            url = f"{self.base_url}/repos/{self.org}/{old_name}"
+            response = self.session.patch(url, json={"name": new_name}, allow_redirects=True)
+            
+            if response.status_code == 404:
+                error_msg = "Repository not found"
+                logging.error(error_msg)
+                return False, error_msg
+
+            response.raise_for_status()
+            return True, None
+
+        except requests.exceptions.RequestException as e:
+            error_msg = str(e)
+            logging.error(error_msg)
+            return False, error_msg
+
 def validate_environment() -> tuple[str, str]:
     """Validates and returns required environment variables.
     
@@ -179,6 +263,45 @@ def read_repo_list(file_path: str) -> List[str]:
     except IOError as e:
         logging.error(f"Error reading input file: {str(e)}")
         sys.exit(1)
+
+def read_rename_pairs(file_path: str) -> List[Tuple[str, str]]:
+    """Reads repository rename pairs from a CSV file.
+    
+    Args:
+        file_path (str): Path to the CSV file containing old and new names
+        
+    Returns:
+        List[Tuple[str, str]]: List of (old_name, new_name) pairs
+        
+    Raises:
+        SystemExit: If file cannot be read
+    """
+    try:
+        pairs = []
+        with open(file_path, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                pairs.append((row['REPO_NAME'], row['REPO_NEW_NAME']))
+        return pairs
+    except IOError as e:
+        logging.error(f"Error reading input file: {str(e)}")
+        sys.exit(1)
+
+def write_results(file_path: str, results: List[Tuple[str, str, str, Optional[str]]]):
+    """Writes renaming results to a log file.
+    
+    Args:
+        file_path (str): Path to the output log file
+        results: List of (old_name, new_name, status, log) tuples
+    """
+    try:
+        with open(file_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['REPO_NAME', 'REPO_NEW_NAME', 'STATUS', 'LOG'])
+            for result in results:
+                writer.writerow(result)
+    except IOError as e:
+        logging.error(f"Error writing to log file: {str(e)}")
 
 def process_repo(client: GitHubAPIClient, repo_name: str) -> None:
     """Processes a single repository and prints commit and PR information.
@@ -229,16 +352,10 @@ def process_repo(client: GitHubAPIClient, repo_name: str) -> None:
         print(f"{repo_url},{created_at},{date},{committer},{author},{sha},{pr_created_at},{pr_author},{pr_url}")
 
 def main():
-    """Main function to handle script execution.
-    
-    Command line arguments:
-        repos: Repository names (optional)
-        --input, -i: File containing repository names (optional)
-        --verbose: Enable debug logging (optional)
-    """
-    parser = argparse.ArgumentParser(description="Fetch latest commit information from GitHub repositories")
-    parser.add_argument("repos", nargs='*', help="Repository names")
-    parser.add_argument("--input", "-i", help="File containing repository names")
+    """Main function to handle repository renaming."""
+    parser = argparse.ArgumentParser(description="Rename GitHub repositories")
+    parser.add_argument("--input", "-i", required=True, help="Input CSV file with repository names")
+    parser.add_argument("--output", "-o", required=True, help="Output log file path")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
 
     args = parser.parse_args()
@@ -256,19 +373,22 @@ def main():
         token, org = validate_environment()
         client = GitHubAPIClient(token, org)
 
-        # Process repositories
-        if args.input:
-            repos = read_repo_list(args.input)
-        elif args.repos:
-            repos = args.repos
-        else:
-            parser.error("Either provide repository names as arguments or use --input file")
+        # Read rename pairs
+        rename_pairs = read_rename_pairs(args.input)
+        results = []
 
-        if repos:
-            print("GIT URL,Repo Created At,Latest Commit Date,Committer,Commit Author,Latest Commit ID,Latest PR Date,PR Author,PR URL")
+        # Process each repository
+        for old_name, new_name in rename_pairs:
+            logging.info(f"Renaming repository: {old_name} -> {new_name}")
+            success, message = client.rename_repository(old_name, new_name)
+            
+            status = "OK" if success else "FAILED"
+            # Only include error messages in the log, not success messages
+            log_message = None if success else message
+            results.append((old_name, new_name, status, log_message))
 
-        for repo in repos:
-            process_repo(client, repo)
+        # Write results to the specified output file
+        write_results(args.output, results)
 
     except ValueError as e:
         logging.error(str(e))
