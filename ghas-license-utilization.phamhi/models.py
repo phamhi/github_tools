@@ -93,6 +93,8 @@ class Report:
 
     @property
     def current_coverage_percentage(self):
+        if self.total_repos == 0:
+            return 0.0
         return round((self.total_current_repos_with_ghas / self.total_repos * 100), 2)
 
     @property
@@ -141,7 +143,7 @@ class Report:
         return {
             "all_repos": [repo.to_dict() for repo in self.all_repos],
             "active_committers": list(self.active_committers),
-            "current_active_commiters": list(self.current_active_commiters),
+            "current_active_commiters": list(self.current_active_committers),
             "current_repos_with_ghas": [
                 repo.to_dict() for repo in self.current_repos_with_ghas
             ],

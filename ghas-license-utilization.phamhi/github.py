@@ -147,14 +147,30 @@ def get_active_committers_in_last_90_days(org, repo, token):
         handle_rate_limit(response)
 
         if response.status_code != 200:
-            logger.info(f"Response: {response.json()}")
-            next
+            try:
+                if response.content and len(response.content.strip()) > 0:
+                    logger.info(f"Response: {response.json()}")
+                else:
+                    logger.info(f"Empty response received with status code: {response.status_code}")
+            except requests.exceptions.JSONDecodeError:
+                logger.info(f"Invalid JSON response with status code: {response.status_code}")
+            continue  # Use continue instead of next
 
         if response.status_code == 401:
             logger.info(f"Insufficient permissions token provided.")
             break
 
-        data = response.json()
+        # Ensure the response has content before parsing
+        if not response.content or len(response.content.strip()) == 0:
+            logger.info(f"Empty response content received from API")
+            break
+        
+        try:
+            data = response.json()
+        except requests.exceptions.JSONDecodeError as e:
+            logger.info(f"Failed to parse JSON response: {e}")
+            break
+
         repository = data["data"]["repository"]
         refs = repository.get("refs")
         visibility = repository.get("visibility")
