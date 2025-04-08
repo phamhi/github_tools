@@ -99,8 +99,6 @@ class Report:
 
     @property
     def new_coverage_percentage(self):
-        if self.total_repos == 0:
-            return 0.0
         sum_activated_repos = (
             len(self.current_repos_without_ghas_with_active_committers)
             + len(self.current_repos_without_ghas_and_committers)

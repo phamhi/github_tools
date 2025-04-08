@@ -171,6 +171,21 @@ def get_active_committers_in_last_90_days(org, repo, token):
             logger.info(f"Failed to parse JSON response: {e}")
             break
 
+        # Check for errors in the GraphQL response
+        if "errors" in data:
+            logger.info(f"GraphQL API errors for {org}/{repo}: {data['errors']}")
+            break
+        
+        # Verify that 'data' field exists in the response
+        if "data" not in data:
+            logger.info(f"No 'data' field in GraphQL response for {org}/{repo}: {data}")
+            break
+        
+        # Verify that 'repository' field exists in the data
+        if "repository" not in data["data"] or data["data"]["repository"] is None:
+            logger.info(f"Repository {org}/{repo} not found or not accessible")
+            break
+            
         repository = data["data"]["repository"]
         refs = repository.get("refs")
         visibility = repository.get("visibility")
@@ -188,10 +203,10 @@ def get_active_committers_in_last_90_days(org, repo, token):
                     if history:
                         commits = history.get("nodes", [])
                         for commit in commits:
-                            user = commit["author"]["user"]
-                            if user:
-                                author = user["login"]
-                                active_committers.add(author)
+                            author = commit.get("author", {})
+                            user = author.get("user") if author else None
+                            if user and user.get("login"):
+                                active_committers.add(user["login"])
                         end_cursor = history.get("pageInfo", {}).get("endCursor")
                         hasNextPage = history.get("pageInfo", {}).get("hasNextPage", False)
 
